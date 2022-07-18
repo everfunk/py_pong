@@ -1,2 +1,2 @@
 # py_pong
-python pong on tkInter  example
+python pong on tkInter (tutorial)
