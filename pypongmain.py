@@ -25,7 +25,8 @@ class Ball:
         self.radius = 10.0
         self.motion = Motion()
 
-    def set_position(self, position):
+    def set_motion(self, m):
+        self.motion = m
         pass
 
 class Motion:
@@ -34,7 +35,7 @@ class Motion:
         self.posY = 0.0
         self.phi = 0.0
 
-        self.velocityX = 0.0
+        self.velocityX = 0.1
         self.velocityY = 0.0
         self.omega = 0.1
         pass
@@ -80,21 +81,39 @@ class PongApplication:
         self.master.title('PONG')
         self.canvas = tkinter.Canvas(self.master, width=400, height=400)
         self.canvas.pack()
-        self.ballphy = BallPhy(Ball())
+
+        self.ball = Ball()
+        self.ballphy = BallPhy(self.ball)
+
         self.img = Image.open(r'resources/ball.png').resize((50, 50), Image.ANTIALIAS)
-        self.master.after(1000, lambda : self.move())
+
+        self.pimg = ImageTk.PhotoImage(image=self.img)
+        """
+        self.canvas.create_line(0, 0, 100, 100)
+        self.canvas.create_image((100, 100), image=self.pimg)
+        self.canvas.update()"""
+        self.draw_field()
+        self.master.after(50, lambda : self.move())
+
 
     def move(self):
-        self.ballphy.make_step(1)
+        self.ballphy.make_step(100)
+        self.draw_field()
+        self.master.after(50, lambda: self.move())
 
     def workflow(self):
-        self.window.after(1000, self.move)
+        pass
+        """self.window.after(1000, self.move)"""
 
     def draw_field(self):
         self.canvas.create_line(0, 0, 100, 100)
 
-        pimg = ImageTk.PhotoImage(image=self.img.rotate())
-        self.canvas.create_image((0, 0), image=pimg, anchor='nw')
+
+        self.pimg = ImageTk.PhotoImage(image=self.img.rotate(self.ball.motion.phi))
+        """
+        self.pimg = ImageTk.PhotoImage(image=self.img)
+        """
+        self.canvas.create_image((self.ball.motion.posX, self.ball.motion.posY), image=self.pimg, anchor='nw')
         self.canvas.update()
         pass
 
