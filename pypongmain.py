@@ -95,16 +95,10 @@ class ObstacleView:
     """
 
 
-
-
-
-
-
-
-
 class Linear2DObstacle(Obstacle):
-    def __init__(self, plane, point1, point2):
+    def __init__(self, obstacle_id, plane, point1, point2):
         super().__init__()
+        self.obstacle_id = obstacle_id
         self.plane = plane
         self.point1 = point1
         self.point2 = point2
@@ -129,7 +123,7 @@ class Linear2DObstacle(Obstacle):
             """при движении пересечена линия ограничения"""
             """определяем границы"""
 
-            part = (val1 - size *0.5) / (val1 - val2)
+            part = (val1 - size * 0.5) / (val1 - val2)
             point = motion1.pos.add(motion2.pos.diff(motion1.pos).scale(part))
 
             if self.v_min <= self.co_normal.scalar(point) <= self.v_max:
@@ -139,18 +133,18 @@ class Linear2DObstacle(Obstacle):
                 new_motion.pos = point
                 new_motion.phi = motion1.phi
                 new_motion.omega = motion1.omega
-                print(motion1.pos.x, motion1.pos.x, motion1.velocity.x, motion1.velocity.y, val1, val2)
                 return True, new_motion, part, self.plane.normal
 
             direction = Plane2D(motion1.pos, Point2D(motion1.velocity.y, -motion1.velocity.x))
-            if direction.apply(self.point1) <= size*0.5 or direction.apply(self.point2) <= size*0.5:
+            if abs(direction.apply(self.point1)) <= size*0.5 or abs(direction.apply(self.point2)) <= size*0.5:
                 """задели за край"""
+                print(motion1.pos.x, motion1.pos.x, motion1.velocity.x, motion1.velocity.y, val1, val2)
                 new_motion = Motion()
                 new_motion.velocity = motion1.velocity
                 new_motion.pos = point
                 new_motion.phi = motion1.phi
                 new_motion.omega = motion1.omega
-                pass
+                return True, new_motion, part, self.plane.normal
 
             return False, motion2, 0, self.plane.normal
         pass
@@ -168,8 +162,10 @@ class Ball:
         self.visible = 0.0
         self.radius = 10.0
         self.motion = Motion()
-        self.motion.pos.x = 20
+        self.motion.pos.x = 40
         self.motion.pos.y = 20
+        self.motion.velocity.x = 0.02
+        self.motion.velocity.y = 0.02
         self.size = 40
 
     def set_motion(self, m):
@@ -182,8 +178,16 @@ class Motion:
         self.pos = Point2D(0.0, 0.0)
         self.phi = 0.0
 
-        self.velocity = Point2D(0.13, 0.17)
+        self.velocity = Point2D(0.0, 0.0)
         self.omega = 0.1
+        pass
+
+
+class FiredObstacle:
+    def __init__(self, motion, part, normal):
+        self.motion = motion
+        self.part = part
+        self.normal = normal
         pass
 
 
@@ -216,23 +220,36 @@ class BallPhysics:
         motion = self.ball.motion
         while time_left > 0:
             new_motion = self.update_motion(motion, time_left)
-            got_obstacle = False
             near_time = time_left
-            near_point = new_motion.pos
-            near_normal = Point2D(0.0, 0.0)
+            list_of_fired_obstacles = []
 
             for obstacle in self.obstacles:
-                fired, point, part, normal = obstacle.check(self.ball.size, self.ball.motion, new_motion)
+                fired, motion, part, normal = obstacle.check(self.ball.size, self.ball.motion, new_motion)
                 if fired:
+                    fired_obstacle = FiredObstacle(motion, part, normal)
                     """сработало препятствие"""
+                    print("#"+str(obstacle.obstacle_id))
                     new_near_time = time * part
-                    if 0 < new_near_time <= near_time:
-                        got_obstacle = True
+                    if 0 < new_near_time < near_time:
+                        """новое более раннее препятствие"""
+                        list_of_fired_obstacles = [fired_obstacle]
                         near_time = new_near_time
-                        near_point = point
-                        near_normal = normal
-            if got_obstacle:
-                new_motion = self.bounce(near_point, near_normal)
+                    elif 0 < new_near_time == near_time:
+                        """добавляем препятствие в список препятствий"""
+                        list_of_fired_obstacles.append(fired_obstacle)
+
+            if len(list_of_fired_obstacles) > 0:
+                """если несколько препятствий вычисляем среднюю нормаль"""
+                new_normal = Point2D(0.0, 0.0)
+                new_point = Point2D(0.0, 0.0)
+                for obstacle in list_of_fired_obstacles:
+                    new_normal = new_normal.add(obstacle.normal)
+                    new_point = new_point.add(obstacle.motion.pos)
+                new_normal = new_normal.normalize()
+                new_point = new_point.scale(1.0/len(list_of_fired_obstacles))
+                new_motion = list_of_fired_obstacles[0].motion
+                new_motion.pos = new_point
+                new_motion = self.bounce(new_motion, new_normal)
                 time_left = time_left - near_time
             else:
                 time_left = 0
@@ -268,6 +285,11 @@ class PongApplication:
         point210 = Point2D(100.0, 150.0)
         point211 = Point2D(150.0, 150.0)
 
+        point300 = Point2D(200.0, 50.0)
+        point301 = Point2D(250.0, 50.0)
+        point310 = Point2D(200.0, 100.0)
+        point311 = Point2D(250.0, 100.0)
+
         plane1 = Plane2D(point00, Point2D(0.0, 1.0))
         plane2 = Plane2D(point00, Point2D(1.0, 0.0))
         plane3 = Plane2D(point10, Point2D(0.0, -1.0))
@@ -278,15 +300,30 @@ class PongApplication:
         plane23 = Plane2D(point210, Point2D(0.0, 1.0))
         plane24 = Plane2D(point201, Point2D(1.0, 0.0))
 
-        self.field.add_obstacle(Linear2DObstacle(plane1, point00, point01))
-        self.field.add_obstacle(Linear2DObstacle(plane2, point00, point10))
-        self.field.add_obstacle(Linear2DObstacle(plane3, point10, point11))        
-        self.field.add_obstacle(Linear2DObstacle(plane4, point01, point11))
+        plane31 = Plane2D(point300, Point2D(0.0, -1.0))
+        plane32 = Plane2D(point300, Point2D(-1.0, 0.0))
+        plane33 = Plane2D(point310, Point2D(0.0, 1.0))
+        plane34 = Plane2D(point301, Point2D(1.0, 0.0))
 
-        self.field.add_obstacle(Linear2DObstacle(plane21, point200, point201))
-        self.field.add_obstacle(Linear2DObstacle(plane22, point200, point210))
-        self.field.add_obstacle(Linear2DObstacle(plane23, point210, point211))
-        self.field.add_obstacle(Linear2DObstacle(plane24, point201, point211))
+        self.field.add_obstacle(Linear2DObstacle(1, plane1, point00, point01))
+        self.field.add_obstacle(Linear2DObstacle(2, plane2, point00, point10))
+        self.field.add_obstacle(Linear2DObstacle(3, plane3, point10, point11))
+        self.field.add_obstacle(Linear2DObstacle(4, plane4, point01, point11))
+
+        """
+        self.field.add_obstacle(Linear2DObstacle(5, plane21, point200, point201))
+        self.field.add_obstacle(Linear2DObstacle(6, plane22, point200, point210))
+        """
+
+        self.field.add_obstacle(Linear2DObstacle(7, plane23, point210, point211))
+        self.field.add_obstacle(Linear2DObstacle(8, plane24, point201, point211))
+
+        """
+        self.field.add_obstacle(Linear2DObstacle(9, plane31, point300, point301))
+        self.field.add_obstacle(Linear2DObstacle(10, plane32, point300, point310))
+        self.field.add_obstacle(Linear2DObstacle(11, plane33, point310, point311))
+        self.field.add_obstacle(Linear2DObstacle(12, plane34, point301, point311))
+        """
 
         """
         self.field.add_obstacle(Linear2DObstacle(plane4, point01, point11))
@@ -320,6 +357,7 @@ class PongApplication:
         self.canvas.create_line(0, 0, 100, 100)
         self.canvas.create_rectangle(0, 0, 400, 200, fill="#DDD")
         self.canvas.create_rectangle(100, 100, 150, 150, fill="#222")
+        self.canvas.create_rectangle(200, 50, 250, 100, fill="#222")
         self.pimg = ImageTk.PhotoImage(image=self.img.rotate(self.ball.motion.phi))
         """
         self.pimg = ImageTk.PhotoImage(image=self.img)
