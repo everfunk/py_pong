@@ -116,18 +116,21 @@ class Linear2DObstacle(Obstacle):
         """
         val1 = self.plane.apply(motion1.pos)
         val2 = self.plane.apply(motion2.pos)
-        if val1 >= size * 0.5 and val2 > size * 0.5:
+        if (val1 >= size * 0.5 and val2 > size * 0.5) or \
+                (val1 <= size * 0.5 and val2 < size * 0.5):
             """обе точки с одной стороны ограничения"""
             return False, motion2, 0, self.plane.normal
         else:
-            """при движении пересечена линия ограничения"""
+            """при движении пересечена линия ограничения в положительную сторону"""
             """определяем границы"""
 
             part = (val1 - size * 0.5) / (val1 - val2)
             point = motion1.pos.add(motion2.pos.diff(motion1.pos).scale(part))
+            dist = self.co_normal.scalar(point)
 
-            if self.v_min <= self.co_normal.scalar(point) <= self.v_max:
+            if self.v_min <= dist <= self.v_max:
                 """полный отскок"""
+                print("BOUNCE " + str(dist))
                 new_motion = Motion()
                 new_motion.velocity = motion1.velocity
                 new_motion.pos = point
@@ -164,8 +167,8 @@ class Ball:
         self.motion = Motion()
         self.motion.pos.x = 40
         self.motion.pos.y = 20
-        self.motion.velocity.x = 0.02
-        self.motion.velocity.y = 0.02
+        self.motion.velocity.x = 0.08
+        self.motion.velocity.y = 0.05
         self.size = 40
 
     def set_motion(self, m):
@@ -312,13 +315,14 @@ class PongApplication:
 
         """
         self.field.add_obstacle(Linear2DObstacle(5, plane21, point200, point201))
-        self.field.add_obstacle(Linear2DObstacle(6, plane22, point200, point210))
         """
 
+        self.field.add_obstacle(Linear2DObstacle(6, plane22, point200, point210))
+
+        """
         self.field.add_obstacle(Linear2DObstacle(7, plane23, point210, point211))
         self.field.add_obstacle(Linear2DObstacle(8, plane24, point201, point211))
 
-        """
         self.field.add_obstacle(Linear2DObstacle(9, plane31, point300, point301))
         self.field.add_obstacle(Linear2DObstacle(10, plane32, point300, point310))
         self.field.add_obstacle(Linear2DObstacle(11, plane33, point310, point311))
